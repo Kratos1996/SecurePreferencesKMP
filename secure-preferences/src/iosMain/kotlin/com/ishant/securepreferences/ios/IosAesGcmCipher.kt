@@ -5,7 +5,6 @@ import dev.whyoleg.cryptography.CryptographyProvider
 import dev.whyoleg.cryptography.CryptographyProviderApi
 import dev.whyoleg.cryptography.algorithms.AES
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -14,7 +13,7 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
-import kotlinx.cinterop.get
+import kotlinx.cinterop.readBytes
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFMutableDictionaryRef
@@ -60,18 +59,23 @@ internal class IosAesGcmCipher(
     override suspend fun decrypt(ciphertext: ByteArray, associatedData: ByteArray): ByteArray =
         getKey().cipher().decrypt(ciphertext, associatedData)
 
-    private suspend fun getKey(): AES.GCM.Key = mutex.withLock {
-        cachedKey?.let { return@withLock it }
-        val rawKey = keychain.readOrCreate {
-            val generated = aes.keyGenerator(AES.Key.Size.B256).generateKey()
-            generated.encodeToByteArray(AES.Key.Format.RAW)
-        }
+    private suspend fun getKey(): AES.GCM.Key {
+        mutex.lock()
         try {
-            aes.keyDecoder().decodeFromByteArray(AES.Key.Format.RAW, rawKey).also {
-                cachedKey = it
+            cachedKey?.let { return it }
+            val rawKey = keychain.readOrCreate {
+                val generated = aes.keyGenerator(AES.Key.Size.B256).generateKey()
+                generated.encodeToByteArray(AES.Key.Format.RAW)
+            }
+            return try {
+                aes.keyDecoder().decodeFromByteArray(AES.Key.Format.RAW, rawKey).also {
+                    cachedKey = it
+                }
+            } finally {
+                rawKey.fill(0)
             }
         } finally {
-            rawKey.fill(0)
+            mutex.unlock()
         }
     }
 }
@@ -105,7 +109,7 @@ private class KeychainAesKeyStore(
         val data = CFBridgingRelease(result.value) as? NSData ?: return null
         val size = data.length.toInt()
         val pointer = data.bytes?.reinterpret<kotlinx.cinterop.ByteVar>() ?: return null
-        ByteArray(size) { index -> pointer[index] }
+        pointer.readBytes(size)
     }
 
     private fun add(key: ByteArray) {
