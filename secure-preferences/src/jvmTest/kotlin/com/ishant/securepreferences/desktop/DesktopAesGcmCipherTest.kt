@@ -47,13 +47,13 @@ class DesktopAesGcmCipherTest {
             val second = DesktopAesGcmCipher("account", "alias-v2", directory.resolve("b.lock"), credentials)
             val aad = "namespace-v1".encodeToByteArray()
             val ciphertext = first.encrypt("value".encodeToByteArray(), aad)
+            assertSuspendingFailure { second.decrypt(ciphertext, aad) }
             assertEquals(2, credentials.size(), "Each key alias must create its own credential-store entry")
             assertNotEquals(
                 credentials.password("com.ishant.securepreferences.account.alias-v1", "alias-v1"),
                 credentials.password("com.ishant.securepreferences.account.alias-v2", "alias-v2"),
                 "Different aliases must persist different random master keys",
             )
-            assertSuspendingFailure { second.decrypt(ciphertext, aad) }
         }
     }
 
