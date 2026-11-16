@@ -15,13 +15,7 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * JVM/Desktop AES-256-GCM backed by the operating system credential store.
- *
- * The keyring stores only the 256-bit master key. It is never written to the
- * encrypted snapshot directory. A file lock serializes first-time key creation
- * across processes belonging to this application.
- */
+/** JVM/Desktop AES-256-GCM backed by the native OS credential store. */
 internal class DesktopAesGcmCipher(
     private val configName: String,
     private val keyAlias: String,
@@ -32,7 +26,7 @@ internal class DesktopAesGcmCipher(
     } catch (cause: Throwable) {
         throw IllegalStateException(
             "No supported OS credential store is available. Configure macOS Keychain, " +
-                "Windows Credential Manager, or Linux Secret Service before using Desktop SecurePreferences.",
+                "Windows Credential Manager, or Linux Secret Service/KWallet before using Desktop SecurePreferences.",
             cause,
         )
     }
@@ -67,15 +61,17 @@ internal class DesktopAesGcmCipher(
         synchronized(KEY_LOCK) {
             cachedKey?.let { return it }
             Files.createDirectories(lockFile.parent)
-            FileChannel.open(
-                lockFile,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.WRITE,
-            ).use { channel ->
+            FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
                 channel.lock().use {
                     val stored = try {
                         keyring.getPassword(SERVICE_PREFIX + configName, keyAlias)
-                    } catch (_: PasswordAccessException) {
+                    } catch (cause: PasswordAccessException) {
+                        if (!cause.isMissingCredential()) {
+                            throw IllegalStateException(
+                                "Unable to access the Desktop master key in the OS credential store",
+                                cause,
+                            )
+                        }
                         null
                     }
                     val encoded = stored ?: createAndStoreKey()
@@ -102,7 +98,6 @@ internal class DesktopAesGcmCipher(
         return try {
             val encoded = Base64.getEncoder().encodeToString(raw)
             keyring.setPassword(SERVICE_PREFIX + configName, keyAlias, encoded)
-            // Re-read to ensure the credential store accepted and retained the value.
             keyring.getPassword(SERVICE_PREFIX + configName, keyAlias)
                 ?: throw IllegalStateException("OS credential store did not return the stored master key")
         } catch (cause: Exception) {
@@ -110,6 +105,13 @@ internal class DesktopAesGcmCipher(
         } finally {
             raw.fill(0)
         }
+    }
+
+    private fun PasswordAccessException.isMissingCredential(): Boolean {
+        val message = message.orEmpty()
+        return message.contains("No stored credentials match", ignoreCase = true) ||
+            message.contains("Password not Found", ignoreCase = true) ||
+            message.contains("Error code 1168")
     }
 
     private companion object {
