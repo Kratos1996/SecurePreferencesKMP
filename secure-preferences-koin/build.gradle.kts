@@ -19,6 +19,7 @@ kotlin {
         }
         androidInstrumentedTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.androidx.test.core)
             implementation(libs.androidx.test.runner)
             implementation(libs.androidx.test.ext.junit)
         }

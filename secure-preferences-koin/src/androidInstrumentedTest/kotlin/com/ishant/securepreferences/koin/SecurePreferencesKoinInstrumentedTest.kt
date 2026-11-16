@@ -10,7 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.koin.core.context.koinApplication
+import org.koin.dsl.koinApplication
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
