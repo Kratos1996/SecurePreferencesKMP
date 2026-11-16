@@ -33,6 +33,9 @@ kotlin {
             implementation(libs.cryptography.core)
             implementation(libs.cryptography.provider.optimal)
         }
+        jvmMain.dependencies {
+            implementation(libs.java.keyring)
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
