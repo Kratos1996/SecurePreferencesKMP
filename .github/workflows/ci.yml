@@ -24,6 +24,7 @@ jobs:
           :secure-preferences:compileKotlinWasmJs
           :secure-preferences:compileKotlinIosX64
           :secure-preferences:compileKotlinIosSimulatorArm64
+          :secure-preferences:compileTestKotlinIosX64
           :secure-preferences-koin:compileDebugKotlinAndroid
       - name: Run Android Keystore and Koin instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2

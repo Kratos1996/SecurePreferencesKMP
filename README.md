@@ -5,7 +5,7 @@
 
 A SharedPreferences-style encrypted key-value storage library for Kotlin Multiplatform.
 
-**Implemented today:** common API and Android Keystore-backed implementation. iOS, JVM Desktop, JavaScript and WebAssembly adapters are planned and are not yet available.
+**Implemented today:** common API, Android Keystore-backed implementation, and an initial iOS Keychain-backed implementation. JVM Desktop, JavaScript and WebAssembly adapters are not yet available. iOS simulator/device integration tests and CI validation are still pending.
 
 ## Android usage (without Koin)
 
@@ -22,6 +22,21 @@ preferences.remove("access_token")
 ```
 
 All reads and writes are suspending.
+
+## iOS usage
+
+The iOS entry point uses AES-256-GCM through the cryptography-kotlin Apple provider. The AES key is stored as a Keychain generic-password item with `AfterFirstUnlockThisDeviceOnly` accessibility; the encrypted snapshot is stored in the app's `NSUserDefaults` domain.
+
+```kotlin
+val preferences = SecurePreferencesIos.create(
+    config = SecurePreferencesConfig(name = "account"),
+)
+
+preferences.putString("access_token", token)
+val token = preferences.getString("access_token")
+```
+
+Import `com.ishant.securepreferences.ios.SecurePreferencesIos` from the iOS source set. All operations are suspending.
 
 ## Android usage with Koin
 
@@ -90,6 +105,7 @@ The Koin integration is an optional Android artifact. The core library does not 
 ## Security model
 
 - Android uses AES-256-GCM with a non-exportable Android Keystore key.
+- iOS uses AES-256-GCM with a 256-bit key stored in Keychain using `AfterFirstUnlockThisDeviceOnly`; the key is not stored in preferences or ordinary files.
 - A fresh 96-bit IV is generated for every encryption operation.
 - Authenticated additional data binds the encrypted snapshot to its configured namespace.
 - Only ciphertext is persisted in the private SharedPreferences file.
@@ -101,7 +117,7 @@ Browser-side encryption, once implemented, will not protect against malicious Ja
 
 ## Project status
 
-The common API and Android implementation are under active development. iOS, JVM Desktop, JavaScript and WebAssembly platform adapters, platform integration tests and release validation remain outstanding. Do not treat this project as production-ready until those platform implementations and tests are complete.
+The common API, Android adapter and initial iOS adapter are under active development. iOS simulator/device integration tests, JVM Desktop, JavaScript and WebAssembly adapters, and release validation remain outstanding. Do not treat this project as production-ready until those platform implementations and tests are complete.
 
 ## Relationship to KMP_Security
 
