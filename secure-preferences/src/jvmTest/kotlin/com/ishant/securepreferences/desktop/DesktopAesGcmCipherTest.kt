@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -46,7 +47,12 @@ class DesktopAesGcmCipherTest {
             val second = DesktopAesGcmCipher("account", "alias-v2", directory.resolve("b.lock"), credentials)
             val aad = "namespace-v1".encodeToByteArray()
             val ciphertext = first.encrypt("value".encodeToByteArray(), aad)
-            assertTrue(credentials.size() == 2)
+            assertEquals(2, credentials.size(), "Each key alias must create its own credential-store entry")
+            assertNotEquals(
+                credentials.password("com.ishant.securepreferences.account.alias-v1", "alias-v1"),
+                credentials.password("com.ishant.securepreferences.account.alias-v2", "alias-v2"),
+                "Different aliases must persist different random master keys",
+            )
             assertSuspendingFailure { second.decrypt(ciphertext, aad) }
         }
     }
@@ -62,6 +68,7 @@ class DesktopAesGcmCipherTest {
         override fun getPassword(service: String, account: String): String? = values[service to account]
         override fun setPassword(service: String, account: String, password: String) { values[service to account] = password }
         fun size(): Int = values.size
+        fun password(service: String, account: String): String? = values[service to account]
     }
 
     private suspend fun withTemporaryDirectory(block: suspend (java.nio.file.Path) -> Unit) {
