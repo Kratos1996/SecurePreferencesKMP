@@ -28,6 +28,7 @@ import platform.Foundation.create
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.errSecSuccess
+import platform.Security.errSecItemNotFound
 import platform.Security.errSecDuplicateItem
 import platform.Security.kSecAttrAccessible
 import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -105,8 +106,12 @@ private class KeychainAesKeyStore(
         val result = alloc<CFTypeRefVar>()
         val status = SecItemCopyMatching(query, result.ptr)
         CFRelease(query)
-        if (status != errSecSuccess) return null
-        val data = CFBridgingRelease(result.value) as? NSData ?: return null
+        if (status == errSecItemNotFound) return null
+        check(status == errSecSuccess) {
+            "Unable to read the AES key from iOS Keychain (OSStatus=$status)"
+        }
+        val data = CFBridgingRelease(result.value) as? NSData
+            ?: throw IllegalStateException("iOS Keychain returned no key data")
         val size = data.length.toInt()
         val pointer = data.bytes?.reinterpret<kotlinx.cinterop.ByteVar>() ?: return null
         pointer.readBytes(size)
