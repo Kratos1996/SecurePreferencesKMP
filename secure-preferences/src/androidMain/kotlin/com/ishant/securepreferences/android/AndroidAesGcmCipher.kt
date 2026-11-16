@@ -44,9 +44,9 @@ internal class AndroidAesGcmCipher(
             cipher.doFinal(encrypted)
         }
 
-    private fun getOrCreateKey(): java.security.Key {
+    private fun getOrCreateKey(): java.security.Key = synchronized(KEY_LOCK) {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
-        (keyStore.getKey(alias, null) as? java.security.Key)?.let { return it }
+        (keyStore.getKey(alias, null) as? java.security.Key)?.let { return@synchronized it }
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE)
         generator.init(
@@ -61,7 +61,7 @@ internal class AndroidAesGcmCipher(
                 .setUserAuthenticationRequired(false)
                 .build()
         )
-        return generator.generateKey()
+        generator.generateKey()
     }
 
     private companion object {
@@ -70,5 +70,6 @@ internal class AndroidAesGcmCipher(
         const val IV_LENGTH = 12
         const val TAG_LENGTH_BITS = 128
         const val TAG_LENGTH_BYTES = TAG_LENGTH_BITS / 8
+        val KEY_LOCK = Any()
     }
 }

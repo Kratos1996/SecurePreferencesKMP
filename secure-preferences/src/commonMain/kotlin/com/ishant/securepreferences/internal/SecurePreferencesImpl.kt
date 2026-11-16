@@ -3,6 +3,7 @@ package com.ishant.securepreferences.internal
 import com.ishant.securepreferences.SecurePreferences
 import com.ishant.securepreferences.SecurePreferencesConfig
 import com.ishant.securepreferences.SecurePreferencesException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -98,6 +99,8 @@ class SecurePreferencesImpl internal constructor(
         val stored = storage.read() ?: return emptyMap()
         val envelope = try {
             json.decodeFromString<EncryptedSnapshot>(stored)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (cause: Throwable) {
             throw SecurePreferencesException.CorruptValue(cause)
         }
@@ -108,11 +111,15 @@ class SecurePreferencesImpl internal constructor(
         }
         val plaintext = try {
             cipher.decrypt(envelope.ciphertext, associatedData())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (cause: Throwable) {
             throw SecurePreferencesException.CorruptValue(cause)
         }
         return try {
             json.decodeFromString<Map<String, Entry>>(plaintext.decodeToString())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (cause: Throwable) {
             throw SecurePreferencesException.CorruptValue(cause)
         } finally {
@@ -128,9 +135,12 @@ class SecurePreferencesImpl internal constructor(
         val plaintext = json.encodeToString(entries).encodeToByteArray()
         try {
             val encrypted = cipher.encrypt(plaintext, associatedData())
-            val envelope = EncryptedSnapshot(ciphertext = encrypted)
-            storage.write(json.encodeToString(envelope))
-            encrypted.fill(0)
+            try {
+                val envelope = EncryptedSnapshot(ciphertext = encrypted)
+                storage.write(json.encodeToString(envelope))
+            } finally {
+                encrypted.fill(0)
+            }
         } finally {
             plaintext.fill(0)
         }
