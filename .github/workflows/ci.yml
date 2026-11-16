@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  common-and-android:
+  android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,5 +15,5 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Run common tests and Android compilation
-        run: ./gradlew :secure-preferences:allTests :secure-preferences:compileDebugKotlinAndroid :secure-preferences-koin:compileDebugKotlinAndroid
+      - name: Run Android unit tests and compile Android artifacts
+        run: ./gradlew :secure-preferences:testDebugUnitTest :secure-preferences:compileDebugKotlinAndroid :secure-preferences-koin:compileDebugKotlinAndroid

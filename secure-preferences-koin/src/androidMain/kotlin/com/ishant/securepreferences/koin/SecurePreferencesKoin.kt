@@ -11,15 +11,7 @@ import org.koin.dsl.module
  * Creates a Koin module that provides an application-scoped [SecurePreferences]
  * instance backed by the Android Keystore implementation.
  *
- * Koin's Android context must be registered before this module is resolved:
- *
- * ```kotlin
- * startKoin {
- *     androidContext(applicationContext)
- *     modules(securePreferencesModule())
- * }
- * ```
- *
+ * Koin's Android context must be registered before this module is resolved.
  * For multiple configurations, register one module per configuration and use
  * a distinct qualifier for each registration.
  */
