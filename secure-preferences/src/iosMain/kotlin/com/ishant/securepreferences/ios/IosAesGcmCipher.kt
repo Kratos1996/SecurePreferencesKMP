@@ -65,8 +65,12 @@ internal class IosAesGcmCipher(
             val generated = aes.keyGenerator(AES.Key.Size.B256).generateKey()
             generated.encodeToByteArray(AES.Key.Format.RAW)
         }
-        aes.keyDecoder().decodeFromByteArray(AES.Key.Format.RAW, rawKey).also {
-            cachedKey = it
+        try {
+            aes.keyDecoder().decodeFromByteArray(AES.Key.Format.RAW, rawKey).also {
+                cachedKey = it
+            }
+        } finally {
+            rawKey.fill(0)
         }
     }
 }
@@ -77,11 +81,15 @@ private class KeychainAesKeyStore(
     private val service: String,
     private val account: String,
 ) {
-    fun readOrCreate(generate: () -> ByteArray): ByteArray {
+    suspend fun readOrCreate(generate: suspend () -> ByteArray): ByteArray {
         read()?.let { return it }
         val generated = generate()
-        require(generated.size == AES_256_KEY_BYTES) { "AES-256 key must be 32 bytes" }
-        add(generated)
+        try {
+            require(generated.size == AES_256_KEY_BYTES) { "AES-256 key must be 32 bytes" }
+            add(generated)
+        } finally {
+            generated.fill(0)
+        }
         // A second process may win the insert race; always return the persisted key.
         return read() ?: throw IllegalStateException("Unable to persist or retrieve the iOS Keychain key")
     }
