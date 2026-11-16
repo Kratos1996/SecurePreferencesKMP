@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.library)
-    alias(libs.plugins.maven.publish)
+    id("com.vanniktech.maven.publish")
 }
 
 group = "io.github.kratos1996"
