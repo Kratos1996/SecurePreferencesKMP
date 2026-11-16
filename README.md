@@ -5,13 +5,14 @@
 
 A SharedPreferences-style encrypted key-value storage library for Kotlin Multiplatform.
 
-**Targets planned:** Android · iOS · JVM Desktop · JavaScript · WebAssembly
+**Implemented today:** common API and Android Keystore-backed implementation. iOS, JVM Desktop, JavaScript and WebAssembly adapters are planned and are not yet available.
 
-## API
+## Android usage (without Koin)
 
 ```kotlin
-val preferences = SecurePreferences.create(
-    config = SecurePreferencesConfig(name = "account")
+val preferences = SecurePreferencesAndroid.create(
+    context = context,
+    config = SecurePreferencesConfig(name = "account"),
 )
 
 preferences.putString("access_token", token)
@@ -20,29 +21,91 @@ preferences.putBoolean("is_logged_in", true)
 preferences.remove("access_token")
 ```
 
-All reads and writes are suspending to support asynchronous platform crypto and storage without blocking UI threads.
+All reads and writes are suspending.
 
-## Security goals
+## Android usage with Koin
 
-- AES-256-GCM authenticated encryption.
-- Fresh cryptographically secure nonce for every encryption.
-- Associated data binds encrypted values to the preference namespace and key.
-- Android Keystore-backed encryption keys.
-- iOS Keychain-protected key material.
-- Desktop OS credential storage.
-- Browser Web Crypto non-extractable keys stored in IndexedDB.
-- Versioned encrypted record format and explicit authentication errors.
-- No plaintext secrets or encryption keys in persistent storage or logs.
+Add both artifacts to your Android app:
 
-Browser-side encryption does not protect against malicious JavaScript executing in the same origin (including XSS). Desktop support must use the operating system credential store; a plaintext key file is not an acceptable fallback.
+```kotlin
+implementation("io.github.kratos1996:secure-preferences-kmp:0.1.0")
+implementation("io.github.kratos1996:secure-preferences-koin:0.1.0")
+```
+
+Register the module during Koin startup. Koin's Android context is required:
+
+```kotlin
+startKoin {
+    androidContext(applicationContext)
+    modules(
+        securePreferencesModule(
+            config = SecurePreferencesConfig(name = "account"),
+        ),
+    )
+}
+```
+
+Inject the interface into repositories or other Koin-managed components:
+
+```kotlin
+class AuthRepository(
+    private val preferences: SecurePreferences,
+) {
+    suspend fun saveAccessToken(token: String) {
+        preferences.putString("access_token", token)
+    }
+
+    suspend fun accessToken(): String? =
+        preferences.getString("access_token")
+}
+```
+
+### Multiple preference stores
+
+Use a distinct Koin qualifier for each configuration:
+
+```kotlin
+val accountPreferences = named("account-preferences")
+val settingsPreferences = named("settings-preferences")
+
+startKoin {
+    androidContext(applicationContext)
+    modules(
+        securePreferencesModule(
+            config = SecurePreferencesConfig(name = "account"),
+            qualifier = accountPreferences,
+        ),
+        securePreferencesModule(
+            config = SecurePreferencesConfig(name = "settings"),
+            qualifier = settingsPreferences,
+        ),
+    )
+}
+```
+
+Resolve each store with its qualifier, for example `get<SecurePreferences>(accountPreferences)`.
+
+The Koin integration is an optional Android artifact. The core library does not depend on Koin. Each Koin definition is a singleton; the Android factory also caches instances by application, preferences name and key alias so separately created definitions for the same store share the same in-process instance.
+
+## Security model
+
+- Android uses AES-256-GCM with a non-exportable Android Keystore key.
+- A fresh 96-bit IV is generated for every encryption operation.
+- Authenticated additional data binds the encrypted snapshot to its configured namespace.
+- Only ciphertext is persisted in the private SharedPreferences file.
+- The current implementation encrypts the preference map as one snapshot. It is intended for small preference values, not large files or blobs.
+
+Android Keystore keys are Keystore-backed; hardware-backed protection depends on device capabilities. This library does not claim that every device provides a hardware-backed key.
+
+Browser-side encryption, once implemented, will not protect against malicious JavaScript executing in the same origin (including XSS). Desktop support must use the operating system credential store; a plaintext key file is not an acceptable fallback.
 
 ## Project status
 
-This repository is at the initial scaffold stage. Common API and target declarations are being established first. Platform key providers, encrypted record persistence, factory APIs, integration tests, and CI validation must be completed before a release is considered production-ready.
+The common API and Android implementation are under active development. iOS, JVM Desktop, JavaScript and WebAssembly platform adapters, platform integration tests and release validation remain outstanding. Do not treat this project as production-ready until those platform implementations and tests are complete.
 
 ## Relationship to KMP_Security
 
-The implementation is designed to reuse the cryptographic primitives from [KMP_Security](https://github.com/Kratos1996/KMP_Security), rather than creating a second independent encryption engine. The integration must preserve platform-native, non-exportable key handling; existing device identity signing keys must never be repurposed as AES encryption keys.
+This repository currently uses Android JCA AES/GCM with Android Keystore directly so the non-exportable Keystore key never needs to be exported into a generic crypto API. It does not yet depend on or reuse KMP_Security. Any future shared crypto integration must preserve platform-native, non-exportable key handling; signing keys must never be repurposed as AES encryption keys.
 
 ## License
 
