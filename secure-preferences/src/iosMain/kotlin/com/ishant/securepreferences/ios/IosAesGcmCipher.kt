@@ -14,7 +14,6 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
-import platform.CoreFoundation.CFBridgingRetain
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFMutableDictionaryRef
@@ -23,6 +22,9 @@ import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
 import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.Foundation.NSData
+import platform.Foundation.CFBridgingRetain
+import platform.Foundation.CFBridgingRelease
+import platform.Foundation.create
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.errSecSuccess
@@ -91,7 +93,7 @@ private class KeychainAesKeyStore(
         val status = SecItemCopyMatching(query, result.ptr)
         CFRelease(query)
         if (status != errSecSuccess) return null
-        val data = platform.Foundation.CFBridgingRelease(result.value) as? NSData ?: return null
+        val data = CFBridgingRelease(result.value) as? NSData ?: return null
         val size = data.length.toInt()
         val pointer = data.bytes?.reinterpret<kotlinx.cinterop.ByteVar>() ?: return null
         ByteArray(size) { index -> pointer[index] }
