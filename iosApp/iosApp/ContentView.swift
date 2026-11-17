@@ -1,15 +1,6 @@
+import UIKit
 import SwiftUI
 import SampleApp
-
-@main
-struct iOSApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ComposeView()
-                .ignoresSafeArea(.all)
-        }
-    }
-}
 
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
@@ -17,4 +8,11 @@ struct ComposeView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+}
+
+struct ContentView: View {
+    var body: some View {
+        ComposeView()
+            .ignoresSafeArea()
+    }
 }
