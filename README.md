@@ -1,6 +1,7 @@
 # SecurePreferencesKMP
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.kratos1996/secure-preferences-kmp)](https://central.sonatype.com/artifact/io.github.kratos1996/secure-preferences-kmp)
+[![](https://jitpack.io/v/Kratos1996/SecurePreferencesKMP.svg)](https://jitpack.io/#Kratos1996/SecurePreferencesKMP)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.21-blue.svg?logo=kotlin)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -34,10 +35,23 @@ It transparently encrypts all key-value entries using **AES-256-GCM** authentica
 
 ## 📦 Installation
 
-Add the dependencies to your `libs.versions.toml` or `build.gradle.kts`:
+### Step 1: Add Repositories (`settings.gradle.kts`)
 
-### Version Catalog (`gradle/libs.versions.toml`)
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
 
+### Step 2: Add Dependencies
+
+#### Option A: Maven Central (`io.github.kratos1996`)
+
+**Version Catalog (`gradle/libs.versions.toml`)**:
 ```toml
 [versions]
 securePreferences = "0.1.0"
@@ -47,7 +61,19 @@ secure-preferences-core = { group = "io.github.kratos1996", name = "secure-prefe
 secure-preferences-koin = { group = "io.github.kratos1996", name = "secure-preferences-koin", version.ref = "securePreferences" }
 ```
 
-### `build.gradle.kts` (Multiplatform / App module)
+#### Option B: JitPack (`com.github.Kratos1996.SecurePreferencesKMP`)
+
+**Version Catalog (`gradle/libs.versions.toml`)**:
+```toml
+[versions]
+securePreferences = "0.1.0"
+
+[libraries]
+secure-preferences-core = { group = "com.github.Kratos1996.SecurePreferencesKMP", name = "secure-preferences-kmp", version.ref = "securePreferences" }
+secure-preferences-koin = { group = "com.github.Kratos1996.SecurePreferencesKMP", name = "secure-preferences-koin", version.ref = "securePreferences" }
+```
+
+#### In `build.gradle.kts` (Multiplatform / App module)
 
 ```kotlin
 sourceSets {
