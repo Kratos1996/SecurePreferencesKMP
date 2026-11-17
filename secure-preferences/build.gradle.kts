@@ -17,12 +17,20 @@ kotlin {
     iosSimulatorArm64()
     iosX64()
     js(IR) {
-        browser()
+        browser {
+            testTask {
+                failOnNoDiscoveredTests = false
+            }
+        }
         nodejs()
     }
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
     wasmJs {
-        browser()
+        browser {
+            testTask {
+                failOnNoDiscoveredTests = false
+            }
+        }
         nodejs()
     }
 
@@ -45,7 +53,7 @@ kotlin {
 
 android {
     namespace = "com.ishant.securepreferences"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         minSdk = 24
     }

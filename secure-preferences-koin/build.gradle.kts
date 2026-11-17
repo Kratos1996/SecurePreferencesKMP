@@ -28,7 +28,7 @@ kotlin {
 
 android {
     namespace = "com.ishant.securepreferences.koin"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 24

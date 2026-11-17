@@ -17,8 +17,8 @@ object SecurePreferencesIos {
         val bundleId = NSBundle.mainBundle.bundleIdentifier ?: DEFAULT_SERVICE
         val instanceKey = "$bundleId|${config.name}|${config.keyAlias}"
         lock.lock()
-        try {
-            return instances.getOrPut(instanceKey) {
+        return try {
+            instances.getOrPut(instanceKey) {
                 SecurePreferencesFactory.create(
                     config = config,
                     cipher = IosAesGcmCipher(

@@ -55,7 +55,6 @@ internal class DesktopEncryptedSnapshotStorage(
     override suspend fun delete() {
         withContext(Dispatchers.IO) {
             Files.deleteIfExists(snapshotFile)
-            Unit
         }
     }
 

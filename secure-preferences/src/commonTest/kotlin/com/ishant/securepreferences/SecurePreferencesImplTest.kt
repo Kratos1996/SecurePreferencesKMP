@@ -16,7 +16,7 @@ class SecurePreferencesImplTest {
         val prefs = createPreferences()
         prefs.putString("token", "secret")
         prefs.putInt("count", 42)
-        prefs.putBoolean("enabled", true)
+        prefs.putBoolean("enabled", value = true)
         prefs.putLong("timestamp", 123456789L)
         prefs.putFloat("ratio", 1.5f)
         prefs.putDouble("amount", 9.25)

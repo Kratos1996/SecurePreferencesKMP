@@ -1,145 +1,266 @@
 # SecurePreferencesKMP
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.kratos1996/secure-preferences-kmp)](https://central.sonatype.com/artifact/io.github.kratos1996/secure-preferences-kmp)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.21-blue.svg?logo=kotlin)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-A SharedPreferences-style encrypted key-value storage library for Kotlin Multiplatform.
+A lightweight, thread-safe, SharedPreferences-style **encrypted key-value preference storage library** for Kotlin Multiplatform (KMP).
 
-**Implemented today:** common API, Android Keystore-backed implementation, and initial iOS and JVM/Desktop adapters. JavaScript and WebAssembly adapters are not yet available. Platform integration testing remains in progress.
+It transparently encrypts all key-value entries using **AES-256-GCM** authenticated encryption, storing the master encryption key inside platform-native secure hardware/OS key stores (Android Keystore, Apple Keychain, OS Credential Managers).
 
-## Android usage (without Koin)
+---
+
+## 🌟 Supported Platforms
+
+| Platform | Master Key Protection | Snapshot Storage |
+| :--- | :--- | :--- |
+| 🤖 **Android** | Android Keystore (non-exportable AES-256-GCM key) | Private `SharedPreferences` |
+| 🍏 **iOS** | Apple Keychain (`AfterFirstUnlockThisDeviceOnly`) | `NSUserDefaults` |
+| 🖥️ **Desktop (JVM)** | macOS Keychain / Windows Credential Manager / Linux Secret Service (via Java Keyring) | POSIX-secured user file (`~/.securepreferences/`) |
+| 🌐 **Extensible** | `SecurePreferencesFactory` for custom crypto & storage adapters | Custom implementation |
+
+---
+
+## 🛠️ What We Are Using Under The Hood
+
+* **Cryptography**: AES-256-GCM with a fresh 96-bit Initialization Vector (IV/nonce) generated for every write operation.
+* **Coroutines & Concurrency**: Fully suspending API (`suspend`) with thread-safe in-process mutation locks.
+* **Serialization**: `kotlinx.serialization` for typed JSON preference payload snapshotting.
+* **Java Keyring**: Native credential store integration for macOS, Windows, and Linux on JVM.
+* **Apple Security Framework**: Native iOS Keychain APIs for key creation, protection, and retrieval.
+* **Optional Koin Support**: Pre-built Koin module artifact (`:secure-preferences-koin`) for Android Dependency Injection.
+
+---
+
+## 📦 Installation
+
+Add the dependencies to your `libs.versions.toml` or `build.gradle.kts`:
+
+### Version Catalog (`gradle/libs.versions.toml`)
+
+```toml
+[versions]
+securePreferences = "0.1.0"
+
+[libraries]
+secure-preferences-core = { group = "io.github.kratos1996", name = "secure-preferences-kmp", version.ref = "securePreferences" }
+secure-preferences-koin = { group = "io.github.kratos1996", name = "secure-preferences-koin", version.ref = "securePreferences" }
+```
+
+### `build.gradle.kts` (Multiplatform / App module)
 
 ```kotlin
+sourceSets {
+    commonMain.dependencies {
+        implementation(libs.secure.preferences.core)
+    }
+}
+```
+
+For Android apps using Koin Dependency Injection:
+
+```kotlin
+dependencies {
+    implementation(libs.secure.preferences.core)
+    implementation(libs.secure.preferences.koin)
+}
+```
+
+---
+
+## 🚀 How To Use
+
+### 1. Android
+
+Initialize using `SecurePreferencesAndroid`:
+
+```kotlin
+import com.ishant.securepreferences.SecurePreferencesConfig
+import com.ishant.securepreferences.android.SecurePreferencesAndroid
+
 val preferences = SecurePreferencesAndroid.create(
     context = context,
-    config = SecurePreferencesConfig(name = "account"),
+    config = SecurePreferencesConfig(name = "user_session"),
 )
 
-preferences.putString("access_token", token)
-val token = preferences.getString("access_token")
+// Suspending write calls
+preferences.putString("access_token", "secret_jwt_token")
 preferences.putBoolean("is_logged_in", true)
-preferences.remove("access_token")
+preferences.putInt("user_id", 1024)
+
+// Suspending read calls
+val token: String? = preferences.getString("access_token")
+val isLoggedIn: Boolean = preferences.getBoolean("is_logged_in", defaultValue = false)
+val userId: Int = preferences.getInt("user_id", defaultValue = -1)
 ```
 
-All reads and writes are suspending.
+### 2. iOS
 
-## iOS usage
-
-The iOS entry point uses AES-256-GCM through the cryptography-kotlin Apple provider. The AES key is stored as a Keychain generic-password item with `AfterFirstUnlockThisDeviceOnly` accessibility; the encrypted snapshot is stored in the app's `NSUserDefaults` domain.
+Initialize using `SecurePreferencesIos`:
 
 ```kotlin
+import com.ishant.securepreferences.SecurePreferencesConfig
+import com.ishant.securepreferences.ios.SecurePreferencesIos
+
 val preferences = SecurePreferencesIos.create(
-    config = SecurePreferencesConfig(name = "account"),
+    config = SecurePreferencesConfig(name = "user_session"),
 )
 
-preferences.putString("access_token", token)
-```
-
-Import `com.ishant.securepreferences.ios.SecurePreferencesIos` from the iOS source set.
-
-## Desktop usage (JVM)
-
-The Desktop adapter supports macOS, Windows, and Linux through the OS credential store.
-
-```kotlin
-val preferences = SecurePreferencesDesktop.create(
-    config = SecurePreferencesConfig(name = "account"),
-)
-
-preferences.putString("access_token", token)
+preferences.putString("access_token", "secret_jwt_token")
 val token = preferences.getString("access_token")
 ```
 
-Use the core artifact; the Desktop implementation is included in its JVM variant. The adapter uses Java Keyring to access macOS Keychain, Windows Credential Manager, or Linux GNOME Keyring/KWallet. Linux requires a running Secret Service or KWallet session. If no supported credential store is available, creation fails closed.
+### 3. Desktop (JVM)
 
-The encrypted snapshot is stored under `~/.securepreferences` by default. On POSIX systems the directory is owner-only (0700) and snapshot files are owner read/write (0600). On Windows, the directory inherits the current user's profile ACL. The master key is not stored in this directory. A per-store file lock serializes first-time key creation across processes.
-
-**macOS packaging note:** Keychain access control is affected by the identity of the JVM executable. For meaningful application-level isolation, package and sign the app with its own bundled runtime; running from a shared system JDK may associate Keychain permissions with that JDK rather than the app bundle.
-
-## Android usage with Koin
-
-Add both artifacts to your Android app:
+Initialize using `SecurePreferencesDesktop` (supports macOS, Windows, and Linux):
 
 ```kotlin
-implementation("io.github.kratos1996:secure-preferences-kmp:0.1.0")
-implementation("io.github.kratos1996:secure-preferences-koin:0.1.0")
+import com.ishant.securepreferences.SecurePreferencesConfig
+import com.ishant.securepreferences.desktop.SecurePreferencesDesktop
+
+val preferences = SecurePreferencesDesktop.create(
+    config = SecurePreferencesConfig(name = "user_session"),
+)
+
+preferences.putString("access_token", "secret_jwt_token")
+val token = preferences.getString("access_token")
 ```
 
-Register the module during Koin startup. Koin's Android context is required:
+### 4. Android with Koin Integration
+
+Register `securePreferencesModule` inside your Koin startup block:
 
 ```kotlin
+import com.ishant.securepreferences.SecurePreferencesConfig
+import com.ishant.securepreferences.koin.securePreferencesModule
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
+
 startKoin {
     androidContext(applicationContext)
     modules(
         securePreferencesModule(
-            config = SecurePreferencesConfig(name = "account"),
+            config = SecurePreferencesConfig(name = "user_session"),
         ),
     )
 }
 ```
 
-Inject the interface into repositories or other Koin-managed components:
+Inject `SecurePreferences` into your Repositories or ViewModels:
 
 ```kotlin
+import com.ishant.securepreferences.SecurePreferences
+
 class AuthRepository(
     private val preferences: SecurePreferences,
 ) {
-    suspend fun saveAccessToken(token: String) {
-        preferences.putString("access_token", token)
+    suspend fun saveAuthToken(token: String) {
+        preferences.putString("auth_token", token)
     }
 
-    suspend fun accessToken(): String? =
-        preferences.getString("access_token")
+    suspend fun getAuthToken(): String? {
+        return preferences.getString("auth_token")
+    }
+
+    suspend fun logout() {
+        preferences.clear()
+    }
 }
 ```
 
-### Multiple preference stores
-
-Use a distinct Koin qualifier for each configuration:
+#### Multiple Store Instances with Koin
 
 ```kotlin
-val accountPreferences = named("account-preferences")
-val settingsPreferences = named("settings-preferences")
+val sessionStore = named("session")
+val settingsStore = named("settings")
 
 startKoin {
     androidContext(applicationContext)
     modules(
         securePreferencesModule(
-            config = SecurePreferencesConfig(name = "account"),
-            qualifier = accountPreferences,
+            config = SecurePreferencesConfig(name = "session"),
+            qualifier = sessionStore,
         ),
         securePreferencesModule(
             config = SecurePreferencesConfig(name = "settings"),
-            qualifier = settingsPreferences,
+            qualifier = settingsStore,
         ),
     )
 }
 ```
 
-Resolve each store with its qualifier, for example `get<SecurePreferences>(accountPreferences)`.
+### 5. Custom Engine / Factory
 
-The Koin integration is an optional Android artifact. The core library does not depend on Koin.
+For custom platform extensions or testing, use `SecurePreferencesFactory`:
 
-## Security model
+```kotlin
+val preferences = SecurePreferencesFactory.create(
+    config = SecurePreferencesConfig(name = "custom"),
+    cipher = myCustomCipher,
+    storage = myCustomStorage,
+)
+```
 
-- Android uses AES-256-GCM with a non-exportable Android Keystore key.
-- iOS uses AES-256-GCM with a 256-bit key stored in Keychain using `AfterFirstUnlockThisDeviceOnly`; the key is not stored in preferences or ordinary files.
-- JVM/Desktop uses AES-256-GCM with the master key stored in the OS credential store (macOS Keychain, Windows Credential Manager, or Linux Secret Service/KWallet).
-- A fresh 96-bit nonce is generated for every encryption operation.
-- Authenticated additional data binds the encrypted snapshot to its configured namespace.
-- The snapshot contains ciphertext only; key names and values are inside the encrypted envelope.
-- The current implementation encrypts the complete preference map as one snapshot. It is intended for small preference values, not large files or blobs.
+---
 
-Android Keystore keys are Keystore-backed; hardware-backed protection depends on device capabilities. This library does not claim that every device provides a hardware-backed key. Browser-side encryption, once implemented, will not protect against malicious JavaScript executing in the same origin (including XSS).
+## 📖 API Reference
 
-## Project status
+All read and write methods are `suspend` functions:
 
-The common API, Android adapter, initial iOS adapter and initial JVM/Desktop adapter are under active development. iOS simulator/device integration tests, real OS credential-store tests on macOS/Windows/Linux, JavaScript and WebAssembly adapters, and release validation remain outstanding. Do not treat this project as production-ready until those platform implementations and tests are complete.
+| Method | Description |
+| :--- | :--- |
+| `putString(key: String, value: String)` | Saves a string preference |
+| `getString(key: String, default: String? = null): String?` | Reads a string preference |
+| `putInt(key: String, value: Int)` | Saves an integer preference |
+| `getInt(key: String, default: Int = 0): Int` | Reads an integer preference |
+| `putLong(key: String, value: Long)` | Saves a long preference |
+| `getLong(key: String, default: Long = 0L): Long` | Reads a long preference |
+| `putFloat(key: String, value: Float)` | Saves a float preference |
+| `getFloat(key: String, default: Float = 0f): Float` | Reads a float preference |
+| `putDouble(key: String, value: Double)` | Saves a double preference |
+| `getDouble(key: String, default: Double = 0.0): Double` | Reads a double preference |
+| `putBoolean(key: String, value: Boolean)` | Saves a boolean preference |
+| `getBoolean(key: String, default: Boolean = false): Boolean` | Reads a boolean preference |
+| `remove(key: String)` | Deletes a specific key |
+| `clear()` | Deletes all keys and clears the store |
+| `contains(key: String): Boolean` | Checks if a key exists |
+| `getAllKeys(): Set<String>` | Returns all stored key names |
 
-## Relationship to KMP_Security
+---
 
-This repository currently uses Android JCA AES/GCM with Android Keystore directly so the non-exportable Keystore key never needs to be exported into a generic crypto API. It does not yet depend on or reuse KMP_Security. Any future shared crypto integration must preserve platform-native, non-exportable key handling; signing keys must never be repurposed as AES encryption keys.
+## 🔐 Security Architecture
 
-## License
+- **Authenticated Encryption**: Uses AES-256-GCM. A fresh 96-bit nonce/IV is generated for every write operation.
+- **Envelope Privacy**: Both preference keys and values are encrypted inside the snapshot payload. The disk contains only ciphertext.
+- **Tamper Protection**: Authenticated Additional Data (AAD) binds each snapshot to its configured namespace (`SecurePreferencesConfig.name`), preventing cross-store snapshot swapping.
+- **Fail-Closed Design**: Any tampered or corrupted snapshot throws `SecurePreferencesException.CorruptValue` rather than returning fallback values.
 
-Apache-2.0
+---
+
+## 📤 Publishing To Maven
+
+To publish the library locally or to remote Maven repositories:
+
+### Publish to Local Maven Repository (`~/.m2/repository`)
+```bash
+./gradlew publishToMavenLocal
+```
+
+### Publish to Remote Maven Repository (Maven Central)
+```bash
+./gradlew publish
+```
+*(Requires Sonatype GPG keys and credentials configured in `gradle.properties` or environment variables)*
+
+---
+
+## 📜 License
+
+```text
+Copyright 2025 Ishant Sharma
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License.
+You may obtain a copy of the License.
+```

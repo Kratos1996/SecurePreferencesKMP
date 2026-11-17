@@ -2,18 +2,18 @@ package com.ishant.securepreferences.ios
 
 import com.ishant.securepreferences.internal.AeadCipher
 import dev.whyoleg.cryptography.CryptographyProvider
-import dev.whyoleg.cryptography.CryptographyProviderApi
 import dev.whyoleg.cryptography.algorithms.AES
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.usePinned
-import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
-import kotlinx.cinterop.value
 import kotlinx.cinterop.readBytes
+import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFMutableDictionaryRef
@@ -21,15 +21,16 @@ import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
 import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
-import platform.Foundation.NSData
-import platform.Foundation.CFBridgingRetain
 import platform.Foundation.CFBridgingRelease
+import platform.Foundation.CFBridgingRetain
+import platform.Foundation.NSData
+import platform.Foundation.NSString
 import platform.Foundation.create
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
-import platform.Security.errSecSuccess
-import platform.Security.errSecItemNotFound
 import platform.Security.errSecDuplicateItem
+import platform.Security.errSecItemNotFound
+import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
 import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 import platform.Security.kSecAttrAccount
@@ -44,7 +45,7 @@ import platform.Security.kSecValueData
  * The raw key is persisted in iOS Keychain and cached only for this instance.
  * Ciphertext format is IV || ciphertext || 128-bit authentication tag.
  */
-@OptIn(ExperimentalForeignApi::class, CryptographyProviderApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal class IosAesGcmCipher(
     service: String,
     account: String,
@@ -82,7 +83,7 @@ internal class IosAesGcmCipher(
 }
 
 /** Stores only the 32-byte AES key in Keychain; never stores it in preferences. */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 private class KeychainAesKeyStore(
     private val service: String,
     private val account: String,
@@ -110,7 +111,7 @@ private class KeychainAesKeyStore(
         check(status == errSecSuccess) {
             "Unable to read the AES key from iOS Keychain (OSStatus=$status)"
         }
-        val data = CFBridgingRelease(result.value) as? NSData
+        val data = (CFBridgingRelease(result.value) as? NSData)
             ?: throw IllegalStateException("iOS Keychain returned no key data")
         val size = data.length.toInt()
         val pointer = data.bytes?.reinterpret<kotlinx.cinterop.ByteVar>() ?: return null
@@ -140,8 +141,8 @@ private class KeychainAesKeyStore(
             kCFTypeDictionaryKeyCallBacks.ptr,
             kCFTypeDictionaryValueCallBacks.ptr,
         ) ?: error("Unable to create Keychain query")
-        val serviceRef = CFBridgingRetain(service as platform.Foundation.NSString)
-        val accountRef = CFBridgingRetain(account as platform.Foundation.NSString)
+        val serviceRef = CFBridgingRetain(NSString.create(string = service))
+        val accountRef = CFBridgingRetain(NSString.create(string = account))
         CFDictionaryAddValue(dictionary, kSecClass, kSecClassGenericPassword)
         CFDictionaryAddValue(dictionary, kSecAttrService, serviceRef)
         CFDictionaryAddValue(dictionary, kSecAttrAccount, accountRef)

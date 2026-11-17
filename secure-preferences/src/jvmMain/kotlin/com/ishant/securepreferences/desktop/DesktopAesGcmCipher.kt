@@ -43,7 +43,7 @@ internal class DesktopAesGcmCipher(
 
     override suspend fun decrypt(ciphertext: ByteArray, associatedData: ByteArray): ByteArray =
         withContext(Dispatchers.IO) {
-            require(ciphertext.size >= GCM_NONCE_BYTES + GCM_TAG_BYTES) {
+            require(ciphertext.size >= (GCM_NONCE_BYTES + GCM_TAG_BYTES)) {
                 "Encrypted preference snapshot is malformed"
             }
             val nonce = ciphertext.copyOfRange(0, GCM_NONCE_BYTES)
@@ -68,14 +68,15 @@ internal class DesktopAesGcmCipher(
                     } catch (cause: IllegalArgumentException) {
                         throw IllegalStateException("The Desktop master key in the OS credential store is malformed", cause)
                     }
-                    try {
+                    val secretKeySpec = try {
                         require(raw.size == AES_256_KEY_BYTES) {
                             "The Desktop master key in the OS credential store has an invalid length"
                         }
-                        return SecretKeySpec(raw.copyOf(), AES_ALGORITHM).also { cachedKey = it }
+                        SecretKeySpec(raw.copyOf(), AES_ALGORITHM).also { cachedKey = it }
                     } finally {
                         raw.fill(0)
                     }
+                    return secretKeySpec
                 }
             }
         }
@@ -96,7 +97,7 @@ internal class DesktopAesGcmCipher(
     }
 
     /** Include both namespace and alias: changing keyAlias must select a different master key. */
-    private fun serviceName(): String = SERVICE_PREFIX + configName + "." + keyAlias
+    private fun serviceName(): String = "$SERVICE_PREFIX$configName.$keyAlias"
 
     private companion object {
         const val SERVICE_PREFIX = "com.ishant.securepreferences."

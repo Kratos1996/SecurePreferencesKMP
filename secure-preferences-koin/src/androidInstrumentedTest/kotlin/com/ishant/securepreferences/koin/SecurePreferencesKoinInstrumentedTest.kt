@@ -43,7 +43,7 @@ class SecurePreferencesKoinInstrumentedTest {
             assertSame("Koin must provide a singleton per definition", first, second)
 
             first.putString("instrumented-token", "encrypted-value")
-            first.putBoolean("instrumented-flag", true)
+            first.putBoolean("instrumented-flag", value = true)
 
             assertEquals("encrypted-value", second.getString("instrumented-token"))
             assertEquals(true, second.getBoolean("instrumented-flag"))

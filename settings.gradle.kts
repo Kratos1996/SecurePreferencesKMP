@@ -5,6 +5,9 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
@@ -17,3 +20,4 @@ dependencyResolutionManagement {
 rootProject.name = "SecurePreferencesKMP"
 include(":secure-preferences")
 include(":secure-preferences-koin")
+include(":sample")

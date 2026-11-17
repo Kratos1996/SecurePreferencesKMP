@@ -33,7 +33,7 @@ internal class AndroidAesGcmCipher(
 
     override suspend fun decrypt(ciphertext: ByteArray, associatedData: ByteArray): ByteArray =
         withContext(Dispatchers.IO) {
-            require(ciphertext.size >= IV_LENGTH + TAG_LENGTH_BYTES) {
+            require(ciphertext.size >= (IV_LENGTH + TAG_LENGTH_BYTES)) {
                 "Encrypted preference snapshot is malformed"
             }
             val iv = ciphertext.copyOfRange(0, IV_LENGTH)
@@ -46,7 +46,7 @@ internal class AndroidAesGcmCipher(
 
     private fun getOrCreateKey(): java.security.Key = synchronized(KEY_LOCK) {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
-        (keyStore.getKey(alias, null) as? java.security.Key)?.let { return@synchronized it }
+        keyStore.getKey(alias, null)?.let { return@synchronized it }
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE)
         generator.init(
@@ -59,7 +59,7 @@ internal class AndroidAesGcmCipher(
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setRandomizedEncryptionRequired(true)
                 .setUserAuthenticationRequired(false)
-                .build()
+                .build(),
         )
         generator.generateKey()
     }
