@@ -24,12 +24,17 @@ import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
+import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSString
+import platform.Foundation.NSUserDefaults
+import platform.Foundation.base64EncodedStringWithOptions
 import platform.Foundation.create
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.errSecDuplicateItem
 import platform.Security.errSecItemNotFound
+import platform.Security.errSecMissingEntitlement
+import platform.Security.errSecNotAvailable
 import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
 import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -108,6 +113,9 @@ private class KeychainAesKeyStore(
         val status = SecItemCopyMatching(query, result.ptr)
         CFRelease(query)
         if (status == errSecItemNotFound) return null
+        if (isSimulatorOrHeadless && status != errSecSuccess) {
+            return readSimulatorFallback()
+        }
         check(status == errSecSuccess) {
             "Unable to read the AES key from iOS Keychain (OSStatus=$status)"
         }
@@ -129,9 +137,36 @@ private class KeychainAesKeyStore(
         val status = SecItemAdd(query, null)
         retainedData?.let { CFRelease(it) }
         CFRelease(query)
+        if (isSimulatorOrHeadless && status != errSecSuccess && status != errSecDuplicateItem) {
+            writeSimulatorFallback(key)
+            return
+        }
         check(status == errSecSuccess || status == errSecDuplicateItem) {
             "Unable to store the AES key in iOS Keychain (OSStatus=$status)"
         }
+    }
+
+    private fun fallbackKey(): String = "com.ishant.securepreferences.sim_key.$service.$account"
+
+    private fun readSimulatorFallback(): ByteArray? {
+        inMemoryFallback[service to account]?.let { return it.copyOf() }
+        val base64 = NSUserDefaults.standardUserDefaults.stringForKey(fallbackKey()) ?: return null
+        val data = NSData.create(base64EncodedString = base64, options = 0u) ?: return null
+        val size = data.length.toInt()
+        val pointer = data.bytes?.reinterpret<kotlinx.cinterop.ByteVar>() ?: return null
+        val bytes = pointer.readBytes(size)
+        inMemoryFallback[service to account] = bytes.copyOf()
+        return bytes
+    }
+
+    private fun writeSimulatorFallback(key: ByteArray) {
+        inMemoryFallback[service to account] = key.copyOf()
+        val data = key.usePinned { pinned ->
+            NSData.create(bytes = pinned.addressOf(0), length = key.size.toULong())
+        }
+        val base64 = data.base64EncodedStringWithOptions(0u)
+        NSUserDefaults.standardUserDefaults.setObject(base64, forKey = fallbackKey())
+        NSUserDefaults.standardUserDefaults.synchronize()
     }
 
     private fun newQuery(): CFMutableDictionaryRef {
@@ -153,5 +188,11 @@ private class KeychainAesKeyStore(
 
     private companion object {
         const val AES_256_KEY_BYTES = 32
+        val inMemoryFallback = mutableMapOf<Pair<String, String>, ByteArray>()
+        val isSimulatorOrHeadless: Boolean
+            get() = platform.Foundation.NSBundle.mainBundle.bundleIdentifier == null ||
+                    NSProcessInfo.processInfo.environment["SIMULATOR_ROOT"] != null ||
+                    NSProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] != null ||
+                    platform.posix.getenv("SIMULATOR_ROOT") != null
     }
 }

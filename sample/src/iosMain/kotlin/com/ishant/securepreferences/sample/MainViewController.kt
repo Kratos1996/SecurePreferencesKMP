@@ -7,7 +7,9 @@ import com.ishant.securepreferences.ios.SecurePreferencesIos
 import platform.UIKit.UIViewController
 
 @Suppress("unused", "FunctionName")
-fun MainViewController(): UIViewController = ComposeUIViewController {
+fun MainViewController(): UIViewController = ComposeUIViewController(
+    configure = { enforceStrictPlistSanityCheck = false }
+) {
     val preferences = remember {
         SecurePreferencesIos.create(
             config = SecurePreferencesConfig(name = "sample_secure_prefs"),

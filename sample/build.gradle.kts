@@ -10,9 +10,16 @@ plugins {
 kotlin {
     androidTarget()
     jvm()
-    iosArm64()
-    iosSimulatorArm64()
-    iosX64()
+    listOf(
+        iosArm64(),
+        iosSimulatorArm64(),
+        iosX64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "SampleApp"
+            isStatic = false
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -55,6 +62,12 @@ android {
         unitTests {
             isIncludeAndroidResources = true
         }
+    }
+}
+
+androidComponents {
+    beforeVariants { variantBuilder ->
+        (variantBuilder as? com.android.build.api.variant.HasUnitTestBuilder)?.enableUnitTest = true
     }
 }
 
